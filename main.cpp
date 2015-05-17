@@ -59,10 +59,12 @@ public:
         while(this->window.waitEvent(event)) {
             switch (event.type){
                 case sf::Event::KeyPressed:
-                    if (event.key.code == 57){
+                    if (event.key.code == 57 || event.key.code == 16 || event.key.code == 36){
                         // we could start the game
                         LOG(INFO) << "We start the game!";
                         goto finish;
+                    }else{
+                        LOG(DEBUG) << event.key.code;
                     }
             }
         };

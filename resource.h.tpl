@@ -13,21 +13,21 @@
 
 struct {
     {% for i,j in resource -%}
-    sf::Texture {{i}};
+    sf::Texture p_{{i}};
     {% endfor -%}
-    sf::Texture gameover;
+    sf::Texture p_game_over;
     {% for i,j in sounds -%}
-    sf::SoundBuffer {{i}};
+    sf::SoundBuffer s_{{i}};
     {% endfor -%}
 } resources;
 
 void loadResource(){
     {% for i,j in resource -%}
-    resources.{{i}}.loadFromFile("{{pic}}", sf::IntRect({{j.xy[0]}}, {{j.xy[1]}}, {{j.size[0]}}, {{j.size[1]}}));
+    resources.p_{{i}}.loadFromFile("{{pic}}", sf::IntRect({{j.xy[0]}}, {{j.xy[1]}}, {{j.size[0]}}, {{j.size[1]}}));
     {% endfor -%}
-    resources.gameover.loadFromFile("/home/pan/ClionProjects/Flight/resources/image/gameover.png");
+    resources.p_game_over.loadFromFile("/home/pan/ClionProjects/Flight/resources/image/gameover.png");
     {% for i,j in sounds -%}
-    resources.{{i}}.loadFromFile("{{j}}");
+    resources.s_{{i}}.loadFromFile("{{j}}");
     {% endfor -%}
 }
 

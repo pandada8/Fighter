@@ -29,8 +29,8 @@ public:
         LOG(INFO) << "Init the program";
     };
     void loadPreSource(){
-        this->font.loadFromFile("/home/pan/ClionProjects/Flight/resources/font/STHeiti Light.ttc");
-        this->background.loadFromFile("/home/pan/ClionProjects/Flight/resources/image/background.png");
+        this->font.loadFromFile("/home/pan/repo/pandada8/flight/resources/font/STHeiti Light.ttc");
+        this->background.loadFromFile("/home/pan/repo/pandada8/flight/resources/image/background.png");
     }
     void loadExtraResource(){
         loadResource();

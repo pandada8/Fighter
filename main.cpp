@@ -62,6 +62,8 @@ public:
     void draw(){};
     void setPosition(float, float){};
     void move(){};
+    void check(){};
+    bool gone(){return true;};
 private:
     sf::Sprite drawable;
 };
@@ -191,6 +193,31 @@ public:
             this->drawBackground();
 //            // draw other things here
 //
+            // we move first
+            for (auto i : render_pool){
+                i->move();
+            }
+            // then we check if we have same position?
+            for (auto i : render_pool){
+                i->check();
+            }
+            auto i = this->render_pool.begin();
+            while(i != this->render_pool.end()){
+                if ((*i)->gone())
+                {
+                    delete *i;
+                    this->render_pool.erase(i);
+                }
+                else
+                    ++i;
+            }
+            // ok we cound draw
+            for (auto i : render_pool){
+                i->draw();
+            }
+
+            this->window.draw(this->flight);
+
             int passed = tick.getElapsedTime().asMilliseconds();
             passed = passed==0 ? 1 : passed ;
             float fps = 1000 / passed;
@@ -208,38 +235,37 @@ public:
     void start_game(){
         LOG(INFO) << "Start game";
         this->drawBackground();
-        sf::Sprite flight(resources.p_hero1);
-        PUT_CENTER(flight, this->window.getSize().y - 120)
-        this->window.draw(flight);
+        this->flight.setTexture(resources.p_hero1);
+        PUT_CENTER(this->flight, this->window.getSize().y - 120)
         this->flush();
         sf::Event event;
-        LOG(INFO) << "Enter event loop ";
 
         // we should render all the things in one thread and just pass the information from the main thread to the target.
+        LOG(INFO) << "Start render thread";
         sf::Thread render(&Application::render, this);
         render.launch();
+        this->window.setActive(false); //work around for the xcb problem
+        LOG(INFO) << "Enter event loop ";
+        float move = 0.0;
+        while (!this->isGameOver() && this->window.hasFocus()) {
+            while (this->window.pollEvent(event)){
+                cout << "Sth happend!";
+                switch(event.type){
+                    case sf::Event::KeyPressed:
+                        if (event.key.code == sf::Keyboard::Left){
+                            this->flight.move(-5.0, 0);
+                            LOG(DEBUG) << "Left";
+                        }else if (event.key.code == sf::Keyboard::Right){
+                            this->flight.move(5.0, 0);
+                        }else if (event.key.code == sf::Keyboard::Space){
+                            LOG(DEBUG) << "Bullet";
+                        }
+                    default:;
+                }
+
+            }
+        }
         render.wait();
-//        while (!this->isGameOver() && this->window.hasFocus()) {
-//            while (this->window.pollEvent(event)){
-//                float move = 0.0;
-//                switch(event.type){
-//                    case sf::Event::KeyPressed:
-//                        if (event.key.code == sf::Keyboard::Left){
-//                            flight.move(-5.0, 0);
-//                        }else if (event.key.code == sf::Keyboard::Right){
-//                            flight.move(5.0, 0);
-//                        }else if (event.key.code == sf::Keyboard::Space){
-//                            LOG(DEBUG) << "Bullet";
-//                        }
-//                        this->window.clear();
-//                        this->drawBackground();
-//                        this->window.draw(flight);
-//                        this->flush();
-//                    default:;
-//                }
-//
-//            }
-//        }
     }
     bool isGameOver(){
         return false;
@@ -249,6 +275,8 @@ private:
     sf::Texture background;
     sf::Font font;
     sf::Sound background_music;
+    sf::Sprite flight;
+    vector<Object*> render_pool;
 };
 int main(int argc, char* argv[]) {
     START_EASYLOGGINGPP(argc, argv);

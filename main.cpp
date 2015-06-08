@@ -56,65 +56,30 @@ struct {
     };
 } skins;
 
-class Object{
-public:
-    Object(){};
-    void draw(){};
-    void setPosition(float, float){};
-    void move(){};
-    void check(){};
-    bool gone(){return true;};
-private:
-    sf::Sprite drawable;
-};
 
-class Bullet : public Object{
+
+class Bullet : public sf::Sprite{
 public:
-    Bullet(bool self = false){
+    Bullet(float base_x, float base_y, bool self = false) : sf::Sprite() {
+        this-> to_self = self;
         if(self){
-            this->drawable = sf::Sprite(*skins.bullets[0]);
+            this->setTexture(*skins.bullets[0]);
         }else{
-            this->drawable = sf::Sprite(*skins.bullets[1]);
+            this->setTexture(*skins.bullets[1]);
         }
+        this->setPosition(base_x, base_y);
     };
-    void setPosition(float x, float y){
-        this->drawable.setPosition(x, y);
-    };
-    void move(float x, float y){
-        this->drawable.move(x, y);
+    void autoMove(){
+        if(to_self){
+            this->move(0, -2.0);
+        }else{
+            this->move(0, 2.0);
+        }
     }
 private:
-    sf::Sprite drawable;
+    bool to_self;
 };
 
-class Enemy : public Object{
-    Enemy(char type='A'){
-        if (type == 'A') {
-            this->skins = ::skins.enemy1;
-        }else{
-            this->skins = ::skins.enemy2;
-        }
-        this->drawable = sf::Sprite(*this->skins[0]);
-    }
-    void move(){
-
-    }
-    void draw(sf::RenderWindow window, bool boom=false){
-        static int frame = 0;
-        if(this->point <= 0){
-            // loser, go to the death
-
-
-        }else{
-            window.draw(this->drawable);
-        }
-
-    };
-private:
-    sf::Texture** skins;
-    sf::Sprite drawable;
-    int point = 100;
-};
 
 class Application{
 public:
@@ -185,53 +150,6 @@ public:
     void update_frame(vector<sf::Drawable>){
 
     }
-    void render(){
-        // paint the fps on the left top corner
-        sf::Clock tick;
-        sf::Text fps_text("FPS", this->font, 20);
-        while (true ){
-            this->drawBackground();
-//            // draw other things here
-//
-            // we move first
-            for (auto i : render_pool){
-                i->move();
-            }
-            // then we check if we have same position?
-            for (auto i : render_pool){
-                i->check();
-            }
-            auto i = this->render_pool.begin();
-            while(i != this->render_pool.end()){
-                if ((*i)->gone())
-                {
-                    delete *i;
-                    this->render_pool.erase(i);
-                }
-                else
-                    ++i;
-            }
-            // ok we cound draw
-            for (auto i : render_pool){
-                i->draw();
-            }
-
-            this->window.draw(this->flight);
-
-            int passed = tick.getElapsedTime().asMilliseconds();
-            passed = passed==0 ? 1 : passed ;
-            float fps = 1000 / passed;
-            fps_text.setString("FPS: "+to_string(fps));
-            this->window.draw(fps_text);
-            this->flush();
-            int delta = 5 - tick.getElapsedTime().asMilliseconds();
-            tick.restart();
-
-            if(delta > 0){
-                sf::sleep(sf::milliseconds(delta));
-            }
-        }
-    }
     void start_game(){
         LOG(INFO) << "Start game";
         this->drawBackground();
@@ -242,30 +160,63 @@ public:
 
         // we should render all the things in one thread and just pass the information from the main thread to the target.
         LOG(INFO) << "Start render thread";
-        sf::Thread render(&Application::render, this);
-        render.launch();
-        this->window.setActive(false); //work around for the xcb problem
+        sf::Clock tick;
+        sf::Text fps_text("FPS", this->font, 20);
         LOG(INFO) << "Enter event loop ";
         float move = 0.0;
+        auto ptr = make_shared<Bullet>(flight.getPosition().x + flight.getLocalBounds().width / 2, flight.getPosition().y, true);
+        bullets_pool.push_back(ptr);
         while (!this->isGameOver() && this->window.hasFocus()) {
+            this->drawBackground();
+
+            // we move first
+            for (auto i : bullets_pool){
+                i->autoMove();
+            }
+            bullets_pool.erase(remove_if(bullets_pool.begin(), bullets_pool.end(), [this](shared_ptr<Bullet> x){
+                return x->getPosition().y < 0 || x->getPosition().y > window.getPosition().y;
+            }), bullets_pool.end());
+            // then we check if we have same position?
+
+            // ok we cound draw
+            for (auto i : bullets_pool){
+                window.draw(*i);
+            }
+
+            this->window.draw(this->flight);
+
+            int passed = tick.getElapsedTime().asMilliseconds();
+            passed = passed==0 ? 1 : passed ;
+            float fps = 1000 / passed;
+            fps_text.setString("FPS: "+to_string(fps));
+            tick.restart();
+            this->window.draw(fps_text);
+            this->flush();
+
+
+
             while (this->window.pollEvent(event)){
-                cout << "Sth happend!";
                 switch(event.type){
                     case sf::Event::KeyPressed:
                         if (event.key.code == sf::Keyboard::Left){
                             this->flight.move(-5.0, 0);
-                            LOG(DEBUG) << "Left";
                         }else if (event.key.code == sf::Keyboard::Right){
                             this->flight.move(5.0, 0);
                         }else if (event.key.code == sf::Keyboard::Space){
-                            LOG(DEBUG) << "Bullet";
+
                         }
                     default:;
                 }
 
             }
+
+            int delta = 5 - tick.getElapsedTime().asMilliseconds();
+
+            if(delta > 0){
+                sf::sleep(sf::milliseconds(delta));
+            }
         }
-        render.wait();
+
     }
     bool isGameOver(){
         return false;
@@ -276,7 +227,9 @@ private:
     sf::Font font;
     sf::Sound background_music;
     sf::Sprite flight;
-    vector<Object*> render_pool;
+    vector<shared_ptr<Bullet>> bullets_pool;
+//    vector<Object*> enemy_pool;
+
 };
 int main(int argc, char* argv[]) {
     START_EASYLOGGINGPP(argc, argv);

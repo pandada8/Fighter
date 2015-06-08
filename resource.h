@@ -95,7 +95,7 @@ void loadResource(){
     resources.p_ufo2.loadFromFile("/home/pan/repo/pandada8/flight/resources/image/shoot.png", sf::IntRect(102, 118, 60, 107));
     resources.p_enemy3_down1.loadFromFile("/home/pan/repo/pandada8/flight/resources/image/shoot.png", sf::IntRect(0, 486, 165, 261));
     resources.p_enemy2.loadFromFile("/home/pan/repo/pandada8/flight/resources/image/shoot.png", sf::IntRect(0, 0, 69, 99));
-    resources.p_game_over.loadFromFile("/home/pan/ClionProjects/Flight/resources/image/gameover.png");
+    resources.p_game_over.loadFromFile("/home/pan/repo/pandada8/flight/resources/image/gameover.png");
     resources.s_achievement.loadFromFile("/home/pan/repo/pandada8/flight/resources/sound/achievement.ogg");
     resources.s_big_spaceship_flying.loadFromFile("/home/pan/repo/pandada8/flight/resources/sound/big_spaceship_flying.ogg");
     resources.s_bullet.loadFromFile("/home/pan/repo/pandada8/flight/resources/sound/bullet.ogg");

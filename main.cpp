@@ -1,10 +1,13 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
+#include <SFML/Audio.hpp>
 #include "easylogging++.h"
 #include "resource.h"
 #include <string>
 #include <vector>
+#include <thread>
+#include <random>
 
 using namespace std;
 
@@ -14,13 +17,101 @@ using namespace std;
 
 INITIALIZE_EASYLOGGINGPP
 
+int randomChoice(int start, int end){
+    static default_random_engine generator;
+    uniform_int_distribution<int> distribution(start, end);
+    return distribution(generator);
+}
 
-class Client{
+
+struct {
+    sf::Texture* bullets[2] = {
+            &resources.p_bullet1,
+            &resources.p_bullet2
+    };
+    sf::Texture* enemy1[5] = {
+            &resources.p_enemy1,
+            &resources.p_enemy1_down1,
+            &resources.p_enemy1_down2,
+            &resources.p_enemy1_down3,
+            &resources.p_enemy1_down4,
+    };
+    sf::Texture* enemy2[5] = {
+            &resources.p_enemy2,
+            &resources.p_enemy2_down1,
+            &resources.p_enemy2_down2,
+            &resources.p_enemy2_down3,
+            &resources.p_enemy2_down4,
+    };
+    sf::Texture* enemy3[9] = {
+            &resources.p_enemy3_n1,
+            &resources.p_enemy3_n2,
+            &resources.p_enemy3_down1,
+            &resources.p_enemy3_down2,
+            &resources.p_enemy3_down3,
+            &resources.p_enemy3_down4,
+            &resources.p_enemy3_down5,
+            &resources.p_enemy3_down6,
+            &resources.p_enemy3_hit,
+    };
+} skins;
+
+class Object{
 public:
-    Client(vector<sf::Sprite>);
-    void attacked(Client);
+    Object(){};
+    void draw(){};
+    void setPosition(float, float){};
+    void move(){};
 private:
-    int life;
+    sf::Sprite drawable;
+};
+
+class Bullet : public Object{
+public:
+    Bullet(bool self = false){
+        if(self){
+            this->drawable = sf::Sprite(*skins.bullets[0]);
+        }else{
+            this->drawable = sf::Sprite(*skins.bullets[1]);
+        }
+    };
+    void setPosition(float x, float y){
+        this->drawable.setPosition(x, y);
+    };
+    void move(float x, float y){
+        this->drawable.move(x, y);
+    }
+private:
+    sf::Sprite drawable;
+};
+
+class Enemy : public Object{
+    Enemy(char type='A'){
+        if (type == 'A') {
+            this->skins = ::skins.enemy1;
+        }else{
+            this->skins = ::skins.enemy2;
+        }
+        this->drawable = sf::Sprite(*this->skins[0]);
+    }
+    void move(){
+
+    }
+    void draw(sf::RenderWindow window, bool boom=false){
+        static int frame = 0;
+        if(this->point <= 0){
+            // loser, go to the death
+
+
+        }else{
+            window.draw(this->drawable);
+        }
+
+    };
+private:
+    sf::Texture** skins;
+    sf::Sprite drawable;
+    int point = 100;
 };
 
 class Application{
@@ -41,11 +132,11 @@ public:
     void drawBackground(){
         sf::Sprite background(this->background);
         background.scale(this->window.getSize().x / background.getLocalBounds().width, 1);
+        this->window.clear();
         this->window.draw(background);
     }
     void drawFirstScreen(){
         LOG(DEBUG) << "The first screen";
-        this->window.clear();
         this->drawBackground();
         sf::Text title(L"打飞机", this->font, 50);
         PUT_CENTER(title, 100)
@@ -54,7 +145,6 @@ public:
     }
     void finishLoading(){
         LOG(DEBUG) << "The main menu";
-        this->window.clear();
         this->drawBackground();
         sf::Text title(L"打飞机", this->font, 50);
         PUT_CENTER(title, 100)
@@ -93,10 +183,30 @@ public:
     void update_frame(vector<sf::Drawable>){
 
     }
+    void render(){
+        // paint the fps on the left top corner
+        sf::Clock tick;
+        sf::Text fps_text("FPS", this->font, 20);
+        while (true ){
+            this->drawBackground();
+//            // draw other things here
+//
+            int passed = tick.getElapsedTime().asMilliseconds();
+            passed = passed==0 ? 1 : passed ;
+            float fps = 1000 / passed;
+            fps_text.setString("FPS: "+to_string(fps));
+            this->window.draw(fps_text);
+            this->flush();
+            int delta = 5 - tick.getElapsedTime().asMilliseconds();
+            tick.restart();
+
+            if(delta > 0){
+                sf::sleep(sf::milliseconds(delta));
+            }
+        }
+    }
     void start_game(){
         LOG(INFO) << "Start game";
-        this->window.clear();
-        LOG(INFO) << "windows cleared ?";
         this->drawBackground();
         sf::Sprite flight(resources.p_hero1);
         PUT_CENTER(flight, this->window.getSize().y - 120)
@@ -105,39 +215,31 @@ public:
         sf::Event event;
         LOG(INFO) << "Enter event loop ";
 
-        while (!this->isGameOver() && this->window.hasFocus()) {
-            while (this->window.pollEvent(event)){
-                float move = 0.0;
-                switch(event.type){
-                    case sf::Event::KeyPressed:
-                        if (event.key.code == sf::Keyboard::Left){
-                            flight.move(-5.0, 0);
-                        }else if (event.key.code == sf::Keyboard::Right){
-                            flight.move(5.0, 0);
-                        }
-//                        this->window.draw(flight);
-                        this->flush();
-
-
-//                        switch (event.key.code){
-//                            case 71:
-//                                LOG(INFO) << "Keypressed:" << event.key.code;
-//                                move -= 5.0;
-//                                break;
-//                            case 72:
-//                                move += 5.0;
-//                                break;
-//                            default:
-//                                LOG(DEBUG) << event.key.code;
+        // we should render all the things in one thread and just pass the information from the main thread to the target.
+        sf::Thread render(&Application::render, this);
+        render.launch();
+        render.wait();
+//        while (!this->isGameOver() && this->window.hasFocus()) {
+//            while (this->window.pollEvent(event)){
+//                float move = 0.0;
+//                switch(event.type){
+//                    case sf::Event::KeyPressed:
+//                        if (event.key.code == sf::Keyboard::Left){
+//                            flight.move(-5.0, 0);
+//                        }else if (event.key.code == sf::Keyboard::Right){
+//                            flight.move(5.0, 0);
+//                        }else if (event.key.code == sf::Keyboard::Space){
+//                            LOG(DEBUG) << "Bullet";
 //                        }
-//                        break;
-                    default:
-                        LOG(DEBUG) << event.key.code;
-                }
-
-
-            }
-        }
+//                        this->window.clear();
+//                        this->drawBackground();
+//                        this->window.draw(flight);
+//                        this->flush();
+//                    default:;
+//                }
+//
+//            }
+//        }
     }
     bool isGameOver(){
         return false;

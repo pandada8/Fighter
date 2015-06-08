@@ -1,9 +1,10 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
 #include "easylogging++.h"
 #include "resource.h"
 #include <string>
-#include <iostream>
+#include <vector>
 
 using namespace std;
 
@@ -13,6 +14,14 @@ using namespace std;
 
 INITIALIZE_EASYLOGGINGPP
 
+
+class Client{
+public:
+    Client(vector<sf::Sprite>);
+    void attacked(Client);
+private:
+    int life;
+};
 
 class Application{
 public:
@@ -31,6 +40,7 @@ public:
     }
     void drawBackground(){
         sf::Sprite background(this->background);
+        background.scale(this->window.getSize().x / background.getLocalBounds().width, 1);
         this->window.draw(background);
     }
     void drawFirstScreen(){
@@ -54,6 +64,11 @@ public:
         sf::Sprite plant(resources.p_hero1);
         PUT_CENTER(plant, BOTTOM(sub_title) + 50)
     };
+    void play_bgm(){
+        this->background_music.setBuffer(resources.s_game_music);
+        this->background_music.setLoop(true);
+        this->background_music.play();
+    }
     void wait_for_space(){
         sf::Event event;
         while(this->window.waitEvent(event)) {
@@ -75,10 +90,63 @@ public:
         LOG(INFO) << "Goodbye!";
         this->window.close();
     }
+    void update_frame(vector<sf::Drawable>){
+
+    }
+    void start_game(){
+        LOG(INFO) << "Start game";
+        this->window.clear();
+        LOG(INFO) << "windows cleared ?";
+        this->drawBackground();
+        sf::Sprite flight(resources.p_hero1);
+        PUT_CENTER(flight, this->window.getSize().y - 120)
+        this->window.draw(flight);
+        this->flush();
+        sf::Event event;
+        LOG(INFO) << "Enter event loop ";
+
+        while (!this->isGameOver() && this->window.hasFocus()) {
+            while (this->window.pollEvent(event)){
+                float move = 0.0;
+                switch(event.type){
+                    case sf::Event::KeyPressed:
+                        if (event.key.code == sf::Keyboard::Left){
+                            flight.move(-5.0, 0);
+                        }else if (event.key.code == sf::Keyboard::Right){
+                            flight.move(5.0, 0);
+                        }
+//                        this->window.draw(flight);
+                        this->flush();
+
+
+//                        switch (event.key.code){
+//                            case 71:
+//                                LOG(INFO) << "Keypressed:" << event.key.code;
+//                                move -= 5.0;
+//                                break;
+//                            case 72:
+//                                move += 5.0;
+//                                break;
+//                            default:
+//                                LOG(DEBUG) << event.key.code;
+//                        }
+//                        break;
+                    default:
+                        LOG(DEBUG) << event.key.code;
+                }
+
+
+            }
+        }
+    }
+    bool isGameOver(){
+        return false;
+    }
 private:
     sf::RenderWindow window;
     sf::Texture background;
     sf::Font font;
+    sf::Sound background_music;
 };
 int main(int argc, char* argv[]) {
     START_EASYLOGGINGPP(argc, argv);
@@ -87,15 +155,18 @@ int main(int argc, char* argv[]) {
     conf.set(el::Level::Global, el::ConfigurationType::Format, "%datetime %level: %msg");
     el::Loggers::reconfigureLogger("default", conf);
 
-
     Application app;
     app.loadPreSource();
     app.drawFirstScreen();
     app.flush();
     app.loadExtraResource();
     app.finishLoading();
+//    app.play_bgm();
     app.flush();
     app.wait_for_space();
+    // start game
+
+    app.start_game();
     app.close();
     return 0;
 }

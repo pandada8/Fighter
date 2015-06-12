@@ -60,8 +60,7 @@ struct {
 
 class Bullet : public sf::Sprite{
 public:
-    Bullet(float base_x, float base_y, bool self = false) : sf::Sprite() {
-        this-> to_self = self;
+    Bullet(float base_x, float base_y, bool self = false) : sf::Sprite(), send_by_self(self) {
         if(self){
             this->setTexture(*skins.bullets[0]);
         }else{
@@ -70,19 +69,18 @@ public:
         this->setPosition(base_x, base_y);
     };
     void autoMove(){
-        if(to_self){
+        if(send_by_self){
             this->move(0, -2.0);
         }else{
             this->move(0, 2.0);
         }
     }
-private:
-    bool to_self;
+    const bool send_by_self;
 };
 
 class Enemy : public sf::Sprite{
 public:
-    Enemy(float width) : sf::Sprite() {
+    Enemy(float width) : sf::Sprite(), life(30) {
         if (randomChoice(0, 1)){
             this->skins = ::skins.enemy1;
         }else{
@@ -91,11 +89,36 @@ public:
         this->setTexture(*this->skins[0]);
         this->setPosition(randomChoice(0, width - this->getLocalBounds().width), - this->getLocalBounds().top + 1);
     }
-    void autoMove(){
-        this->move(0, 1);
+    void paint(){
+
+        if(this->life > 0){
+            this->move(0, 1);
+        }else{
+            if(count == 0){
+                lasted_animate.restart();
+            }
+            if(count <= 4){
+                if(lasted_animate.getElapsedTime().asMilliseconds() > 125){
+                    lasted_animate.restart();
+                    this->setTexture(*this->skins[count++]);
+                }
+            }else{
+                this->animated = true;
+            }
+        }
+    }
+    void hited(){
+        this->life -= 10;
+    }
+    bool should_remove(){
+        return this->life <= 0 && this->animated;
     }
 private:
     sf::Texture** skins;
+    int life;
+    bool animated=false;
+    int count = 1;
+    sf::Clock lasted_animate;
 };
 
 
@@ -183,13 +206,11 @@ public:
         while (!this->isGameOver() && this->window.hasFocus()) {
             this->drawBackground();
 
-            // we move first
-//            LOG(INFO) << bullets_pool.size();
             for (auto i : bullets_pool){
                 i.get()->autoMove();
             }
             bullets_pool.erase(remove_if(bullets_pool.begin(), bullets_pool.end(), [this](shared_ptr<Bullet> x){
-                 return  x.get()->getPosition().y < 0 || x.get()->getPosition().y > window.getSize().y;
+                 return  (x.get()->getPosition().y < 0 || x.get()->getPosition().y > window.getSize().y);
             }), bullets_pool.end());
 
             // gen the enemy
@@ -198,18 +219,29 @@ public:
                 this->enemy_pool.push_back(ptr);
             }
             for(auto i : enemy_pool){
-                i->autoMove();
+
+                i->paint();
+            }
+            // check if we hit
+            for(auto flight : enemy_pool){
+                for(auto i = bullets_pool.begin(); i!=bullets_pool.end();){
+                    if(flight->getGlobalBounds().contains(i->get()->getPosition()) && i->get()->send_by_self){
+                        //wow the flight was hit
+                        LOG(DEBUG) << "A Flight got hit";
+                        flight->hited();
+                        bullets_pool.erase(i);
+                    }else{
+                        i++;
+                    }
+                }
             }
             enemy_pool.erase(remove_if(enemy_pool.begin(), enemy_pool.end(), [this](shared_ptr<Enemy> x){
-                return x->getPosition().y - x->getLocalBounds().height > window.getSize().y;
+                return x->getPosition().y - x->getLocalBounds().height > window.getSize().y || x->should_remove();
             }), enemy_pool.end());
             for(auto i : enemy_pool){
                 window.draw(*i);
             }
-//
 
-
-//             ok we cound draw
             for (auto i : bullets_pool){
                 window.draw(*(i.get()));
             }

@@ -80,10 +80,28 @@ private:
     bool to_self;
 };
 
+class Enemy : public sf::Sprite{
+public:
+    Enemy(float width) : sf::Sprite() {
+        if (randomChoice(0, 1)){
+            this->skins = ::skins.enemy1;
+        }else{
+            this->skins = ::skins.enemy2;
+        }
+        this->setTexture(*this->skins[0]);
+        this->setPosition(randomChoice(0, width - this->getLocalBounds().width), - this->getLocalBounds().top + 1);
+    }
+    void autoMove(){
+        this->move(0, 1);
+    }
+private:
+    sf::Texture** skins;
+};
+
 
 class Application{
 public:
-    Application(): window(sf::VideoMode(480, 800), "Game"){
+    Application(): window(sf::VideoMode(480, 800), "Game"), point(100){
         LOG(INFO) << "Init the program";
     };
     void loadPreSource(){
@@ -147,9 +165,6 @@ public:
         LOG(INFO) << "Goodbye!";
         this->window.close();
     }
-    void update_frame(vector<sf::Drawable>){
-
-    }
     void start_game(){
         LOG(INFO) << "Start game";
         this->drawBackground();
@@ -164,23 +179,39 @@ public:
         sf::Text fps_text("FPS", this->font, 20);
         LOG(INFO) << "Enter event loop ";
         float move = 0.0;
-        auto ptr = make_shared<Bullet>(flight.getPosition().x + flight.getLocalBounds().width / 2, flight.getPosition().y, true);
-        bullets_pool.push_back(ptr);
+
         while (!this->isGameOver() && this->window.hasFocus()) {
             this->drawBackground();
 
             // we move first
+//            LOG(INFO) << bullets_pool.size();
             for (auto i : bullets_pool){
-                i->autoMove();
+                i.get()->autoMove();
             }
             bullets_pool.erase(remove_if(bullets_pool.begin(), bullets_pool.end(), [this](shared_ptr<Bullet> x){
-                return x->getPosition().y < 0 || x->getPosition().y > window.getPosition().y;
+                 return  x.get()->getPosition().y < 0 || x.get()->getPosition().y > window.getSize().y;
             }), bullets_pool.end());
-            // then we check if we have same position?
 
-            // ok we cound draw
-            for (auto i : bullets_pool){
+            // gen the enemy
+            if(this->enemy_pool.size() < 8 && randomChoice(0, 10000) < 50) {
+                auto ptr = make_shared<Enemy>(window.getSize().x);
+                this->enemy_pool.push_back(ptr);
+            }
+            for(auto i : enemy_pool){
+                i->autoMove();
+            }
+            enemy_pool.erase(remove_if(enemy_pool.begin(), enemy_pool.end(), [this](shared_ptr<Enemy> x){
+                return x->getPosition().y - x->getLocalBounds().height > window.getSize().y;
+            }), enemy_pool.end());
+            for(auto i : enemy_pool){
                 window.draw(*i);
+            }
+//
+
+
+//             ok we cound draw
+            for (auto i : bullets_pool){
+                window.draw(*(i.get()));
             }
 
             this->window.draw(this->flight);
@@ -188,22 +219,27 @@ public:
             int passed = tick.getElapsedTime().asMilliseconds();
             passed = passed==0 ? 1 : passed ;
             float fps = 1000 / passed;
-            fps_text.setString("FPS: "+to_string(fps));
+            fps_text.setString("FPS: "+to_string(fps) + " Enemy:" + to_string(enemy_pool.size()) + " Life:" + to_string(this->point));
             tick.restart();
             this->window.draw(fps_text);
             this->flush();
-
-
 
             while (this->window.pollEvent(event)){
                 switch(event.type){
                     case sf::Event::KeyPressed:
                         if (event.key.code == sf::Keyboard::Left){
-                            this->flight.move(-5.0, 0);
-                        }else if (event.key.code == sf::Keyboard::Right){
-                            this->flight.move(5.0, 0);
-                        }else if (event.key.code == sf::Keyboard::Space){
-
+                            if(this->flight.getPosition().x - 10 > 0){
+                                this->flight.move(-10.0, 0);
+                            }
+                        }
+                        if (event.key.code == sf::Keyboard::Right){
+                            if(window.getSize().x - this->flight.getLocalBounds().width - this->flight.getPosition().x > 10){
+                                this->flight.move(10.0, 0);
+                            }
+                        }
+                        if (event.key.code == sf::Keyboard::Space){
+                            auto ptr = make_shared<Bullet>(flight.getPosition().x + flight.getLocalBounds().width / 2, flight.getPosition().y, true);
+                            bullets_pool.push_back(ptr);
                         }
                     default:;
                 }
@@ -226,9 +262,10 @@ private:
     sf::Texture background;
     sf::Font font;
     sf::Sound background_music;
+    int point;
     sf::Sprite flight;
     vector<shared_ptr<Bullet>> bullets_pool;
-//    vector<Object*> enemy_pool;
+    vector<shared_ptr<Enemy>> enemy_pool;
 
 };
 int main(int argc, char* argv[]) {

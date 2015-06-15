@@ -90,16 +90,15 @@ public:
         this->setPosition(randomChoice(0, width - this->getLocalBounds().width), - this->getLocalBounds().top + 1);
     }
     void paint(){
-
         if(this->life > 0){
             this->move(0, 1);
         }else{
             if(count == 0){
-                lasted_animate.restart();
+                last_animate.restart();
             }
             if(count <= 4){
-                if(lasted_animate.getElapsedTime().asMilliseconds() > 125){
-                    lasted_animate.restart();
+                if(last_animate.getElapsedTime().asMilliseconds() > 125){
+                    last_animate.restart();
                     this->setTexture(*this->skins[count++]);
                 }
             }else{
@@ -110,15 +109,23 @@ public:
     void hited(){
         this->life -= 10;
     }
+    void shot(vector<shared_ptr<Bullet>>& bullet_pool){
+        if(this->last_shot.getElapsedTime().asMilliseconds() > 1000){
+            bullet_pool.push_back(make_shared<Bullet>(this->getPosition().x + this->getLocalBounds().width / 2, \
+            this->getPosition().y + this->getGlobalBounds().height, false));
+            this->last_shot.restart();
+        }
+    }
     bool should_remove(){
         return this->life <= 0 && this->animated;
     }
+    int life;
 private:
     sf::Texture** skins;
-    int life;
     bool animated=false;
     int count = 1;
-    sf::Clock lasted_animate;
+    sf::Clock last_animate;
+    sf::Clock last_shot;
 };
 
 
@@ -133,6 +140,7 @@ public:
     }
     void loadExtraResource(){
         loadResource();
+        this->effect.setBuffer(resources.s_enemy1_down);
     }
     void flush(){
         this->window.display();
@@ -188,7 +196,8 @@ public:
         LOG(INFO) << "Goodbye!";
         this->window.close();
     }
-    void start_game(){
+    bool start_game(){
+        this->window.setKeyRepeatEnabled(true);
         LOG(INFO) << "Start game";
         this->drawBackground();
         this->flight.setTexture(resources.p_hero1);
@@ -196,47 +205,71 @@ public:
         this->flush();
         sf::Event event;
 
+
         // we should render all the things in one thread and just pass the information from the main thread to the target.
         LOG(INFO) << "Start render thread";
         sf::Clock tick;
         sf::Text fps_text("FPS", this->font, 20);
         LOG(INFO) << "Enter event loop ";
         float move = 0.0;
-
-        while (!this->isGameOver() && this->window.hasFocus()) {
+        sf::Clock last_shot;
+        while (this->window.hasFocus()) {
             this->drawBackground();
 
             for (auto i : bullets_pool){
-                i.get()->autoMove();
+                i->autoMove();
             }
+            // if we are hit
             bullets_pool.erase(remove_if(bullets_pool.begin(), bullets_pool.end(), [this](shared_ptr<Bullet> x){
-                 return  (x.get()->getPosition().y < 0 || x.get()->getPosition().y > window.getSize().y);
+                if(this->flight.getGlobalBounds().contains(x->getPosition())){
+                    this->point -= 10;
+                    return true;
+                }else{
+                    return (x->getPosition().y < 0 || x->getPosition().y > window.getSize().y);
+                }
             }), bullets_pool.end());
 
-            // gen the enemy
-            if(this->enemy_pool.size() < 8 && randomChoice(0, 10000) < 50) {
+            // gen the new enemy
+            if(this->enemy_pool.size() < 5 && randomChoice(0, 10000) < 50) {
                 auto ptr = make_shared<Enemy>(window.getSize().x);
                 this->enemy_pool.push_back(ptr);
             }
-            for(auto i : enemy_pool){
+            for(auto flight : enemy_pool){
+                flight->shot(bullets_pool);
+            }
 
+            for(auto i : enemy_pool){
                 i->paint();
             }
-            // check if we hit
+            // check if we hit you
             for(auto flight : enemy_pool){
                 for(auto i = bullets_pool.begin(); i!=bullets_pool.end();){
                     if(flight->getGlobalBounds().contains(i->get()->getPosition()) && i->get()->send_by_self){
                         //wow the flight was hit
                         LOG(DEBUG) << "A Flight got hit";
                         flight->hited();
-                        bullets_pool.erase(i);
+                        effect.play();
                     }else{
                         i++;
                     }
                 }
             }
+            // check if we are killed
+            for(auto enemy : enemy_pool){
+                if(this->flight.getGlobalBounds().contains(enemy->getPosition())){
+                    // ok we crashed and died;
+                    this->point -= 10;
+                    enemy->life = 0;
+                }
+            }
+            // A quite LONG Lambda function :/
             enemy_pool.erase(remove_if(enemy_pool.begin(), enemy_pool.end(), [this](shared_ptr<Enemy> x){
-                return x->getPosition().y - x->getLocalBounds().height > window.getSize().y || x->should_remove();
+                if(this->flight.getGlobalBounds().contains(x->getPosition())){
+                    this->point -= 10;
+                    return true;
+                }else{
+                    return x->getPosition().y - x->getLocalBounds().height > window.getSize().y || x->should_remove();
+                }
             }), enemy_pool.end());
             for(auto i : enemy_pool){
                 window.draw(*i);
@@ -256,49 +289,57 @@ public:
             this->window.draw(fps_text);
             this->flush();
 
-            while (this->window.pollEvent(event)){
-                switch(event.type){
-                    case sf::Event::KeyPressed:
-                        if (event.key.code == sf::Keyboard::Left){
-                            if(this->flight.getPosition().x - 10 > 0){
-                                this->flight.move(-10.0, 0);
-                            }
-                        }
-                        if (event.key.code == sf::Keyboard::Right){
-                            if(window.getSize().x - this->flight.getLocalBounds().width - this->flight.getPosition().x > 10){
-                                this->flight.move(10.0, 0);
-                            }
-                        }
-                        if (event.key.code == sf::Keyboard::Space){
-                            auto ptr = make_shared<Bullet>(flight.getPosition().x + flight.getLocalBounds().width / 2, flight.getPosition().y, true);
-                            bullets_pool.push_back(ptr);
-                        }
-                    default:;
-                }
 
+            if(sf::Keyboard::isKeyPressed(sf::Keyboard::Left)){
+                if(this->flight.getPosition().x - 10 > 0){
+                    this->flight.move(-4.0, 0);
+                }
+            }
+            if(sf::Keyboard::isKeyPressed(sf::Keyboard::Right)){
+                if(window.getSize().x - this->flight.getLocalBounds().width - this->flight.getPosition().x > 10){
+                    this->flight.move(4.0, 0);
+                }
+            }
+            if(sf::Keyboard::isKeyPressed(sf::Keyboard::Space) && last_shot.getElapsedTime().asMilliseconds() > 300){
+                auto ptr = make_shared<Bullet>(flight.getPosition().x + flight.getLocalBounds().width / 2, flight.getPosition().y, true);
+                bullets_pool.push_back(ptr);
+                last_shot.restart();
             }
 
-            int delta = 5 - tick.getElapsedTime().asMilliseconds();
+            // if we die?
+            if(this->point <= 0){
+                LOG(INFO) << "Oh WE have to say goobye";
+                return false;
+            }
+
+
+            int delta = 20 - tick.getElapsedTime().asMilliseconds();
 
             if(delta > 0){
                 sf::sleep(sf::milliseconds(delta));
             }
-        }
 
+        }
+        return true;
     }
-    bool isGameOver(){
-        return false;
+    void fail_page(){
+        sf::Sprite mask(resources.p_game_over);
+        this->window.draw(mask);
+        sf::Text fail(L"按空格退出", this->font);
+        PUT_CENTER(fail, 300);
+        this->flush();
+
     }
 private:
     sf::RenderWindow window;
     sf::Texture background;
     sf::Font font;
     sf::Sound background_music;
-    int point;
+    sf::Sound effect;
+    int point = 100;
     sf::Sprite flight;
     vector<shared_ptr<Bullet>> bullets_pool;
     vector<shared_ptr<Enemy>> enemy_pool;
-
 };
 int main(int argc, char* argv[]) {
     START_EASYLOGGINGPP(argc, argv);
@@ -318,7 +359,12 @@ int main(int argc, char* argv[]) {
     app.wait_for_space();
     // start game
 
-    app.start_game();
+    if(!app.start_game()){
+        // we lose
+        app.fail_page();
+        app.wait_for_space();
+    };
+
     app.close();
     return 0;
 }

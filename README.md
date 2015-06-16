@@ -20,8 +20,8 @@
 
     $ pacman -S sfml
 
-> Archlinux 遵循不分包的原则，所以只要下载安装一个包就可以了。
-> 如果目标问题是 Ubuntu 等发行可能还需要 `sfml-dev` 等包来准备必须的头文件等。
+> Archlinux 遵循不分包的原则，所以只要下载安装一个包就可以了。  
+> 如果目标平台是 Ubuntu 等发行可能还需要 `sfml-dev` 等包来准备必须的头文件等。
 
 ### 环境配置
 
@@ -29,8 +29,9 @@ Clion 使用 `cmake` 作为构建环境。同时 `sfml` 的发行中也提供了
 
 所以只需要根据官网说明修改 `CMakeList.txt` 中的内容即可
 
-> 注意到 Clion 有一个 `Feature as bug` 的问题，默认在构建时，会拷贝所有文件到一个新的临时目录，然后从头构建。比较消耗时间。
-> 存在的解决方案是在 CMakeList.txt 中定义 `CMAKE_RUNTIME_OUTPUT_DIRECTORY`
+> 注意到 Clion 有一个 `Feature as bug` 的问题，默认在构建时，会拷贝所有文件到一个新的临时目录，然后从头构建。比较消耗时间。  
+> 存在的解决方案是在 CMakeList.txt 中定义 `CMAKE_RUNTIME_OUTPUT_DIRECTORY`  
+> 不过目前的代码里是硬编码了目录  
 
 ### 代码风格
 
